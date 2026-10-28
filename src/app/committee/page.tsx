@@ -1,0 +1,39 @@
+"use client";
+
+import Link from "next/link";
+import { committeeRecentUploads, type Permission } from "../admin/prototype-data";
+import { usePrototype } from "../admin/prototype-provider";
+import { formatDate, PageHeading, StatusPill } from "../admin/admin-shell";
+
+export default function CommitteeDashboardPage() {
+  const { committeeMember, submissions } = usePrototype();
+  const canUpload = committeeMember.permissions.includes("Upload resources" as Permission);
+  const canReview = committeeMember.permissions.includes("Review submissions" as Permission);
+  const queue = submissions.filter((submission) => submission.status === "Pending").slice(0, 4);
+
+  return <div className="min-h-screen bg-[#f4f7fd] text-slate-900">
+    <header className="border-b border-blue-100 bg-white/95 backdrop-blur-xl"><div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-7">
+      <Link href="/committee" className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-blue-100"><img src="/images/its-logo.png" alt="ITS logo" className="h-full w-full object-contain" /></span><span><span className="block text-lg font-extrabold leading-tight text-blue-950">Academic Vault</span><span className="block text-[10px] font-bold uppercase tracking-[.16em] text-blue-600">Committee workspace · prototype</span></span></Link>
+      <nav aria-label="Committee navigation" className="hidden items-center gap-2 sm:flex"><Link href="/committee" className="rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-900">Dashboard</Link>{canReview && <Link href="/admin/submissions" className="rounded-full px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-blue-50">Review queue</Link>}{canUpload && <Link href="/upload" className="rounded-full bg-blue-800 px-4 py-2 text-sm font-bold text-white hover:bg-blue-900">Upload resources</Link>}<Link href="/" className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Public site</Link></nav>
+      <details className="relative sm:hidden"><summary className="cursor-pointer list-none rounded-full border border-blue-200 px-4 py-2 text-sm font-bold text-blue-900">Menu <span aria-hidden="true">⌄</span></summary><nav aria-label="Committee mobile navigation" className="absolute right-0 z-20 mt-2 grid min-w-48 gap-1 rounded-2xl border border-blue-100 bg-white p-2 shadow-xl"><Link href="/committee" className="rounded-xl px-3 py-2 text-sm font-semibold text-blue-900 hover:bg-blue-50">Dashboard</Link>{canReview && <Link href="/admin/submissions" className="rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-blue-50">Review queue</Link>}{canUpload && <Link href="/upload" className="rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-blue-50">Upload resources</Link>}<Link href="/" className="rounded-xl px-3 py-2 text-sm text-slate-700 hover:bg-blue-50">Public site</Link></nav></details>
+    </div></header>
+
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-7 sm:py-9">
+      <div role="note" className="mb-6 flex flex-col gap-1 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"><strong className="font-extrabold tracking-wide">PROTOTYPE</strong><span>Demonstration data only; changes are not saved. Navigation and permissions are visual simulation, not secure access control.</span></div>
+      <PageHeading eyebrow="Committee workspace · demonstration account" title={`Welcome, ${committeeMember.name}`} description="This fictional sub-admin workspace shows only the tools associated with the sample account’s assigned permissions." action={<span className={`rounded-full px-3 py-1.5 text-xs font-bold ${committeeMember.status === "Active" ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"}`}>{committeeMember.status} demo account</span>} />
+
+      {committeeMember.status === "Inactive" && <p role="status" className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">This demo member is inactive. Role controls are visual only and do not block access.</p>}
+
+      <section className="grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
+        <article className="rounded-3xl bg-[#091d50] p-5 text-white shadow-xl shadow-blue-950/10 sm:p-6"><p className="text-[10px] font-extrabold uppercase tracking-[.18em] text-blue-200">Demo identity</p><h2 className="mt-2 text-xl font-bold">{committeeMember.name}</h2><p className="mt-1 text-sm text-blue-100/70">{committeeMember.email}</p><div className="mt-5 border-t border-white/15 pt-4"><p className="text-[10px] font-extrabold uppercase tracking-[.18em] text-blue-200">Assigned permissions</p><ul className="mt-3 flex flex-wrap gap-2">{committeeMember.permissions.map((permission) => <li key={permission} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold">{permission}</li>)}{!committeeMember.permissions.length && <li className="text-sm text-blue-100/70">No permissions assigned.</li>}</ul></div><p className="mt-5 text-xs leading-5 text-blue-100/65">These permissions are demonstration settings only. No account or security boundary exists.</p></article>
+
+        <article className="rounded-3xl border border-blue-100 bg-white p-5 shadow-[0_15px_40px_-32px_rgba(30,64,175,.5)] sm:p-6"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-extrabold uppercase tracking-[.18em] text-blue-600">Recent uploads</p><h2 className="mt-1 text-lg font-bold text-blue-950">Your demo contributions</h2></div>{canUpload && <Link href="/upload" className="rounded-full bg-blue-800 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-900">Upload a batch →</Link>}</div><ul className="mt-4 divide-y divide-slate-100">{committeeRecentUploads.map((upload) => <li key={upload.filename} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-slate-800">{upload.filename}</p><p className="mt-1 text-xs text-slate-500">{upload.courseCode} · {formatDate(upload.submittedAt)}</p></div><StatusPill status={upload.status} /></li>)}</ul></article>
+      </section>
+
+      {canReview && <section className="mt-5 rounded-3xl border border-blue-100 bg-white p-5 shadow-[0_15px_40px_-32px_rgba(30,64,175,.5)] sm:p-6"><div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-extrabold uppercase tracking-[.18em] text-blue-600">Assigned capability · prototype</p><h2 className="mt-1 text-lg font-bold text-blue-950">Submission review queue</h2></div><Link href="/admin/submissions" className="text-sm font-semibold text-blue-700 hover:text-blue-950">Open queue →</Link></div><ul className="mt-4 divide-y divide-slate-100">{queue.map((item) => <li key={item.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-slate-800">{item.filename}</p><p className="mt-1 text-xs text-slate-500">{item.courseCode} · {item.contributor}</p></div><StatusPill status={item.status} /></li>)}{!queue.length && <li className="py-7 text-center text-sm text-slate-500">The demo queue is clear. New submissions will appear here.</li>}</ul></section>}
+
+      {!canUpload && !canReview && <section className="mt-5 rounded-3xl border border-dashed border-blue-200 bg-white p-8 text-center"><h2 className="font-bold text-blue-950">No demo capabilities assigned</h2><p className="mt-2 text-sm text-slate-500">The account has no upload or review tools in this demonstration.</p></section>}
+      <footer className="mt-8 border-t border-blue-100 py-5 text-sm text-slate-500"><p>Academic Vault · UENR Information Technology · Prototype workspace</p></footer>
+    </main>
+  </div>;
+}
