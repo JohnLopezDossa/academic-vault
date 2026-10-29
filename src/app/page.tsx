@@ -402,15 +402,21 @@ export default function Home() {
           <div>
             <p className="text-xs font-bold uppercase tracking-[.2em] text-sky-200">Student support</p>
             <h2 id="support-title" className="mt-2 max-w-xl text-[clamp(1.45rem,5vw,1.9rem)] font-extrabold leading-tight tracking-tight">Need Help With an Assignment or Project?</h2>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-blue-100 sm:text-base">Get one-to-one assignment support and project guidance from our student support contacts. Edit the message before opening WhatsApp.</p>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-blue-100 sm:text-base">Get one-to-one assignment support and project guidance from our student support contacts.</p>
           </div>
           <div className="min-w-0 rounded-3xl border border-white/20 bg-white/10 p-3.5 backdrop-blur-md sm:p-5">
             <label htmlFor="whatsapp-message" className="text-sm font-semibold text-white">Your message</label>
             <textarea id="whatsapp-message" value={supportMessage} onChange={(event) => setSupportMessage(event.target.value)} rows={3} className="mt-2 min-h-24 w-full min-w-0 resize-y rounded-2xl border border-white/30 bg-white px-4 py-3 text-sm leading-6 text-slate-800 outline-none placeholder:text-slate-400 focus-visible:ring-4 focus-visible:ring-sky-200" />
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <a href={`https://wa.me/233535542438?text=${encodeURIComponent(supportMessage.trim() || defaultSupportMessage)}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-4 py-3 text-center text-sm font-bold text-blue-950 transition hover:-translate-y-0.5 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30">WhatsApp · 053 554 2438</a>
-              <a href={`https://wa.me/233509869865?text=${encodeURIComponent(supportMessage.trim() || defaultSupportMessage)}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/40 bg-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30">WhatsApp · 050 986 6985</a>
-            </div>
+<a
+  href={`https://wa.me/233509866985?text=${encodeURIComponent(supportMessage.trim() || defaultSupportMessage)}`}
+  target="_blank"
+  rel="noopener noreferrer"
+  className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/40 bg-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
+>
+  WhatsApp · 0509866985
+</a>            </div>
           </div>
         </div>
       </section>
