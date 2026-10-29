@@ -1,5 +1,5 @@
 "use client";
-
+import { createCourseAction } from "./action";
 import { useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -70,13 +70,33 @@ function enumLabel(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export default function UploadForm({ courses, courseLoadError = "" }: { courses: Course[]; courseLoadError?: string }) {
+
+export default function UploadForm({
+  courses,
+  courseLoadError = "",
+  canCreateCourse = false,
+}: {
+  courses: Course[];
+  courseLoadError?: string;
+  canCreateCourse?: boolean;
+}) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const nextId = useRef(0);
   const replaceId = useRef<number | null>(null);
   const processing = useRef(false);
   const [courseId, setCourseId] = useState("");
+  
+const [availableCourses, setAvailableCourses] = useState<Course[]>(courses);
+const [showCreateCourse, setShowCreateCourse] = useState(false);
+const [newCourseCode, setNewCourseCode] = useState("");
+const [newCourseTitle, setNewCourseTitle] = useState("");
+const [newCourseLevel, setNewCourseLevel] =
+  useState<Course["academic_level"]>("level_100");
+const [newCourseSemester, setNewCourseSemester] =
+  useState<Course["semester"]>("semester_1");
+const [isCreatingCourse, setIsCreatingCourse] = useState(false);
+
   const [category, setCategory] = useState("");
   const [files, setFiles] = useState<BatchFile[]>([]);
   const [batch, setBatch] = useState<PreparedBatch | null>(null);
@@ -195,6 +215,56 @@ export default function UploadForm({ courses, courseLoadError = "" }: { courses:
     }
   }
 
+async function handleCreateCourse() {
+  if (!canCreateCourse || isCreatingCourse || batch) return;
+
+  setFormError("");
+  setFeedback("");
+
+  if (!newCourseCode.trim() || !newCourseTitle.trim()) {
+    setFormError("Enter both the course code and course title.");
+    return;
+  }
+
+  setIsCreatingCourse(true);
+
+  try {
+    const result = await createCourseAction({
+      course_code: newCourseCode.trim(),
+      title: newCourseTitle.trim(),
+      academic_level: newCourseLevel,
+      semester: newCourseSemester,
+    });
+
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+
+    const createdCourse = result.course as Course;
+
+    setAvailableCourses((current) => {
+      const exists = current.some(
+        (course) => course.id === createdCourse.id
+      );
+      return exists ? current : [...current, createdCourse];
+    });
+
+    setCourseId(createdCourse.id);
+    setShowCreateCourse(false);
+    setNewCourseCode("");
+    setNewCourseTitle("");
+    setFeedback(
+      `Course ${createdCourse.course_code} created and selected.`
+    );
+  } catch {
+    setFormError("Could not create the course. Please try again.");
+  } finally {
+    setIsCreatingCourse(false);
+  }
+}
+
+
   async function submitBatch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (processing.current || isSubmitting || isCleaning) return;
@@ -227,7 +297,9 @@ export default function UploadForm({ courses, courseLoadError = "" }: { courses:
         throw new Error("Your account does not have permission to upload resources.");
       }
 
-      const selectedCourse = courses.find((course) => course.id === courseId);
+const selectedCourse = availableCourses.find(
+  (course) => course.id === courseId
+);
       if (!selectedCourse) throw new Error("That course is no longer available. Reload the page and select an existing course.");
 
       let activeBatch = batch;
@@ -382,9 +454,108 @@ export default function UploadForm({ courses, courseLoadError = "" }: { courses:
             <label htmlFor="course" className="text-sm font-semibold text-slate-700">Course <span aria-hidden="true" className="text-red-600">*</span></label>
             <select id="course" required disabled={Boolean(batch) || Boolean(courseLoadError) || !courses.length} value={courseId} onChange={(event) => { setCourseId(event.target.value); setFormError(""); }} className={inputClass()}>
               <option value="">{courses.length ? "Select a course" : "No courses available"}</option>
-              {courses.map((course) => <option key={course.id} value={course.id}>{course.course_code} · {course.title}</option>)}
+              {availableCourses.map((course) => <option key={course.id} value={course.id}>{course.course_code} · {course.title}</option>)}
             </select>
             {selectedCourse && <dl className="mt-4 grid gap-3 rounded-2xl bg-blue-50/70 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4"><Info label="Course title" value={selectedCourse.title} /><Info label="Course code" value={selectedCourse.course_code} /><Info label="Academic level" value={enumLabel(selectedCourse.academic_level)} /><Info label="Semester" value={enumLabel(selectedCourse.semester)} /></dl>}
+            
+{canCreateCourse && !batch && (
+  <div className="mt-4">
+    <button
+      type="button"
+      onClick={() => {
+        setShowCreateCourse((current) => !current);
+        setFormError("");
+      }}
+      className="rounded-full border border-blue-200 px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-50"
+    >
+      {showCreateCourse ? "Cancel" : "+ Create New Course"}
+    </button>
+
+    {showCreateCourse && (
+      <div className="mt-4 space-y-4 rounded-2xl border border-blue-100 bg-blue-50/50 p-4">
+        <h3 className="font-bold text-blue-950">Create a course</h3>
+
+        <div>
+          <label htmlFor="new-course-code" className="text-sm font-semibold">
+            Course code
+          </label>
+          <input
+            id="new-course-code"
+            maxLength={40}
+            value={newCourseCode}
+            onChange={(event) => setNewCourseCode(event.target.value)}
+            placeholder="e.g. INFT 301"
+            className={inputClass()}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="new-course-title" className="text-sm font-semibold">
+            Course title
+          </label>
+          <input
+            id="new-course-title"
+            maxLength={200}
+            value={newCourseTitle}
+            onChange={(event) => setNewCourseTitle(event.target.value)}
+            placeholder="e.g. Data Mining"
+            className={inputClass()}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="new-course-level" className="text-sm font-semibold">
+            Academic level
+          </label>
+          <select
+            id="new-course-level"
+            value={newCourseLevel}
+            onChange={(event) =>
+              setNewCourseLevel(
+                event.target.value as Course["academic_level"]
+              )
+            }
+            className={inputClass()}
+          >
+            <option value="level_100">Level 100</option>
+            <option value="level_200">Level 200</option>
+            <option value="level_300">Level 300</option>
+            <option value="level_400">Level 400</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="new-course-semester" className="text-sm font-semibold">
+            Semester
+          </label>
+          <select
+            id="new-course-semester"
+            value={newCourseSemester}
+            onChange={(event) =>
+              setNewCourseSemester(
+                event.target.value as Course["semester"]
+              )
+            }
+            className={inputClass()}
+          >
+            <option value="semester_1">Semester 1</option>
+            <option value="semester_2">Semester 2</option>
+          </select>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleCreateCourse}
+          disabled={isCreatingCourse || Boolean(batch)}
+          className="rounded-full bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-60"
+        >
+          {isCreatingCourse ? "Creating..." : "Create and Select Course"}
+        </button>
+      </div>
+    )}
+  </div>
+)}
+
             <div className="mt-4 max-w-sm"><label htmlFor="category" className="text-sm font-semibold text-slate-700">Resource category <span aria-hidden="true" className="text-red-600">*</span></label><select id="category" required disabled={Boolean(batch)} value={category} onChange={(event) => { setCategory(event.target.value); setFormError(""); }} className={inputClass()}><option value="">Select category</option>{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
           </section>
 
@@ -413,7 +584,7 @@ export default function UploadForm({ courses, courseLoadError = "" }: { courses:
           {formError && <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">{formError}</p>}
           {feedback && <p role="status" aria-live="polite" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium leading-6 text-emerald-900">{feedback}</p>}
           {isSubmitting && <p role="status" aria-live="polite" className="text-sm font-semibold text-blue-900">Uploading {uploadedCount} of {validCount} valid files…</p>}
-          <div className="flex flex-col-reverse gap-3 border-t border-blue-100 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="max-w-xl text-xs leading-5 text-slate-500">Files are submitted as private pending resources. Authorized reviewers must approve each file before it appears publicly.</p><button type="submit" disabled={isSubmitting || isCleaning || !courses.length || Boolean(batch && uploadedCount === validCount && validCount > 0)} className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-800 px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-900/15 transition hover:-translate-y-0.5 hover:bg-blue-900 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-70">{isSubmitting ? "Uploading…" : batch && failedUploadCount ? `Retry failed files · ${failedUploadCount}` : batch && uploadedCount === validCount ? "Batch submitted" : `Submit batch${validCount ? ` · ${validCount}` : ""}`}<span aria-hidden="true">→</span></button></div>
+          <div className="flex flex-col-reverse gap-3 border-t border-blue-100 pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="max-w-xl text-xs leading-5 text-slate-500">Files are submitted as private pending resources. Authorized reviewers must approve each file before it appears publicly.</p><button type="submit" disabled={isSubmitting || isCleaning || !availableCourses.length || Boolean(batch && uploadedCount === validCount && validCount > 0)} className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-800 px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-900/15 transition hover:-translate-y-0.5 hover:bg-blue-900 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-70">{isSubmitting ? "Uploading…" : batch && failedUploadCount ? `Retry failed files · ${failedUploadCount}` : batch && uploadedCount === validCount ? "Batch submitted" : `Submit batch${validCount ? ` · ${validCount}` : ""}`}<span aria-hidden="true">→</span></button></div>
         </form>
       </div>
     </main>
