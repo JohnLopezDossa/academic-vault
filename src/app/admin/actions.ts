@@ -1,7 +1,11 @@
+
 "use server";
 
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth/authorization";
 import { createClient } from "@/lib/supabase/server";
+
+
 
 export type ManagedRole = "student" | "sub_admin" | "admin";
 
@@ -45,6 +49,105 @@ export async function updateMemberAccess(input: {
   if (error) return { ok: false, error: "The profile permissions could not be saved. Check the account and database policies." };
   if (!data) return { ok: false, error: "No profile was updated. It may no longer exist or database policies denied the change." };
   return { ok: true };
+}
+
+export async function createCommitteeMember(input: {
+  displayName: string;
+  email: string;
+  password: string;
+  role: ManagedRole;
+  canUpload: boolean;
+  canReview: boolean;
+  canManageResources: boolean;
+}) {
+  await requireRole(["admin"], "/admin/members");
+
+  if (
+    !input ||
+    typeof input.displayName !== "string" ||
+    input.displayName.trim().length < 2 ||
+    input.displayName.trim().length > 120 ||
+    typeof input.email !== "string" ||
+    input.email.trim().length > 254 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim()) ||
+    typeof input.password !== "string" ||
+    input.password.length < 12 ||
+    input.password.length > 128 ||
+    !["student", "sub_admin", "admin"].includes(input.role) ||
+    typeof input.canUpload !== "boolean" ||
+    typeof input.canReview !== "boolean" ||
+    typeof input.canManageResources !== "boolean"
+  ) {
+    return {
+      ok: false,
+      error: "Enter a valid name and email, a password of at least 12 characters, and valid permissions.",
+    };
+  }
+
+  if (
+    input.role !== "sub_admin" &&
+    (input.canUpload || input.canReview || input.canManageResources)
+  ) {
+    return {
+      ok: false,
+      error: "Only sub-admin accounts can receive individual capabilities.",
+    };
+  }
+
+  const admin = createAdminClient();
+  let createdUserId: string | null = null;
+
+  const { data, error } = await admin.auth.admin.createUser({
+    email: input.email.trim().toLowerCase(),
+    password: input.password,
+    email_confirm: false,
+    user_metadata: {
+      display_name: input.displayName.trim(),
+    },
+  });
+
+  if (error || !data.user) {
+    return {
+      ok: false,
+      error: "Account creation failed. Check the email address and Supabase Auth configuration.",
+    };
+  }
+
+  createdUserId = data.user.id;
+
+  const { error: profileError } = await admin
+    .from("profiles")
+    .update({
+      display_name: input.displayName.trim(),
+      role: input.role,
+      can_upload: input.role === "sub_admin" && input.canUpload,
+      can_review: input.role === "sub_admin" && input.canReview,
+      can_manage_resources:
+        input.role === "sub_admin" && input.canManageResources,
+    })
+    .eq("id", createdUserId);
+
+  if (profileError) {
+    // Avoid leaving an account behind with an unexpected role.
+    const { error: cleanupError } =
+      await admin.auth.admin.deleteUser(createdUserId);
+
+    return {
+      ok: false,
+      error: cleanupError
+        ? "Profile setup failed and account cleanup needs administrator attention."
+        : "Profile setup failed. The newly created account was rolled back.",
+    };
+  }
+
+  return {
+    ok: true,
+    member: {
+      id: createdUserId,
+      email: data.user.email,
+      displayName: input.displayName.trim(),
+    },
+  };
 }
 
 async function requireResourceManager() {

@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateMemberAccess, type ManagedRole } from "../actions";
+import {
+  createCommitteeMember,
+  updateMemberAccess,
+  type ManagedRole,
+} from "../actions";
 
 export type ProfileMember = {
   id: string;
@@ -28,6 +32,59 @@ export default function MembersClient({ profiles, currentUserId }: { profiles: P
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
+const [creating, setCreating] = useState(false);
+const [createError, setCreateError] = useState("");
+const [createFeedback, setCreateFeedback] = useState("");
+
+const [newMember, setNewMember] = useState({
+  displayName: "",
+  email: "",
+  password: "",
+  role: "sub_admin" as ManagedRole,
+  canUpload: false,
+  canReview: false,
+  canManageResources: false,
+});
+
+async function handleCreateMember(event: React.FormEvent<HTMLFormElement>) {
+  event.preventDefault();
+  if (creating) return;
+
+  setCreating(true);
+  setCreateError("");
+  setCreateFeedback("");
+
+  try {
+    const result = await createCommitteeMember(newMember);
+
+    if (!result.ok) {
+      setCreateError(result.error ?? "Account creation failed.");
+      return;
+    }
+
+    setCreateFeedback(
+      `Account created successfully for ${result.member?.displayName ?? newMember.displayName}.`
+    );
+
+    setNewMember({
+      displayName: "",
+      email: "",
+      password: "",
+      role: "sub_admin",
+      canUpload: false,
+      canReview: false,
+      canManageResources: false,
+    });
+
+    setShowAddForm(false);
+    router.refresh();
+  } catch {
+    setCreateError("Something went wrong while creating the account.");
+  } finally {
+    setCreating(false);
+  }
+}
 
   function open(member: ProfileMember) {
     setEditing(member); setRole(member.role); setError(""); setFeedback("");
@@ -56,6 +113,143 @@ export default function MembersClient({ profiles, currentUserId }: { profiles: P
 
   return <>
     {feedback && <p role="status" aria-live="polite" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{feedback}</p>}
+    
+{createFeedback && (
+  <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+    {createFeedback}
+  </p>
+)}
+
+{createError && (
+  <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+    {createError}
+  </p>
+)}
+
+<div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <div>
+    <h2 className="text-lg font-extrabold text-blue-950">Committee accounts</h2>
+    <p className="text-sm text-slate-600">Create login accounts and assign access.</p>
+  </div>
+  <button
+    type="button"
+    onClick={() => {
+      setShowAddForm((value) => !value);
+      setCreateError("");
+      setCreateFeedback("");
+    }}
+    className="rounded-full bg-blue-800 px-5 py-3 text-sm font-bold text-white hover:bg-blue-900"
+  >
+    {showAddForm ? "Close form" : "+ Add Member"}
+  </button>
+</div>
+
+{showAddForm && (
+  <form onSubmit={handleCreateMember} className="mb-6 rounded-3xl border border-blue-100 bg-white p-5 sm:p-7">
+    <h3 className="text-xl font-extrabold text-blue-950">Create member account</h3>
+
+    <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <label className="text-sm font-semibold text-slate-700">
+        Full name
+        <input
+          required
+          minLength={2}
+          maxLength={120}
+          autoComplete="name"
+          value={newMember.displayName}
+          onChange={(e) => setNewMember({ ...newMember, displayName: e.target.value })}
+          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 font-normal"
+          placeholder="Full name"
+        />
+      </label>
+
+      <label className="text-sm font-semibold text-slate-700">
+        Email address
+        <input
+          required
+          type="email"
+          maxLength={254}
+          autoComplete="email"
+          value={newMember.email}
+          onChange={(e) => setNewMember({ ...newMember, email: e.target.value })}
+          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 font-normal"
+          placeholder="member@example.com"
+        />
+      </label>
+
+      <label className="sm:col-span-2 text-sm font-semibold text-slate-700">
+        Initial password
+        <input
+          required
+          type="password"
+          minLength={12}
+          maxLength={128}
+          autoComplete="new-password"
+          value={newMember.password}
+          onChange={(e) => setNewMember({ ...newMember, password: e.target.value })}
+          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 font-normal"
+          placeholder="At least 12 characters"
+        />
+      </label>
+
+      <label className="sm:col-span-2 text-sm font-semibold text-slate-700">
+        Role
+        <select
+          value={newMember.role}
+          onChange={(e) => {
+            const role = e.target.value as ManagedRole;
+            setNewMember({
+              ...newMember,
+              role,
+              canUpload: false,
+              canReview: false,
+              canManageResources: false,
+            });
+          }}
+          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 font-normal"
+        >
+          <option value="sub_admin">Sub-admin</option>
+          <option value="admin">Admin — full access</option>
+        </select>
+      </label>
+    </div>
+
+    {newMember.role === "sub_admin" && (
+      <fieldset className="mt-5 space-y-3">
+        <legend className="mb-2 text-sm font-bold text-slate-800">Permissions</legend>
+        {[
+          ["canUpload", "Upload resources"],
+          ["canReview", "Review submissions"],
+          ["canManageResources", "Manage resources and courses"],
+        ].map(([key, label]) => (
+          <label key={key} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3 text-sm">
+            <input
+              type="checkbox"
+              checked={newMember[key as "canUpload" | "canReview" | "canManageResources"]}
+              onChange={(e) =>
+                setNewMember({
+                  ...newMember,
+                  [key]: e.target.checked,
+                })
+              }
+              className="h-4 w-4 accent-blue-800"
+            />
+            {label}
+          </label>
+        ))}
+      </fieldset>
+    )}
+
+    <button
+      type="submit"
+      disabled={creating}
+      className="mt-6 w-full rounded-full bg-blue-800 px-5 py-3 font-bold text-white hover:bg-blue-900 disabled:opacity-50 sm:w-auto"
+    >
+      {creating ? "Creating account…" : "Create Member Account"}
+    </button>
+  </form>
+)}
+
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-xs text-slate-600"><span className="rounded-full bg-[#091d50] px-3 py-1 font-bold text-white">Admin · full access by role</span><span className="rounded-full bg-blue-50 px-3 py-1 font-bold text-blue-900">Sub-admin · explicit capabilities</span><span className="rounded-full bg-slate-100 px-3 py-1 font-bold text-slate-700">Student · no staff capabilities</span></div>
     <p className="mb-4 text-sm text-slate-600">{profiles.length} registered {profiles.length === 1 ? "profile" : "profiles"}. Email addresses are not stored in the current public profile schema.</p>
     <section aria-label="Registered profiles" className="grid gap-4 xl:grid-cols-2">
