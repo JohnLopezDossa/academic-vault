@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { LogoutButton } from "@/components/auth/logout-button";
 
 const adminLinks = [
   { href: "/admin", label: "Overview", mark: "01" },
@@ -20,18 +21,19 @@ export function AdminShell({ children, pageTitle }: { children: ReactNode; pageT
         <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-4 px-4 py-3 sm:px-7">
           <Link href="/admin" className="flex items-center gap-3" aria-label="Academic Vault admin overview">
             <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-blue-100 bg-white"><img src="/images/its-logo.png" alt="ITS logo" className="h-full w-full object-contain" /></span>
-            <span><span className="block text-lg font-extrabold leading-tight tracking-tight text-blue-950">Academic Vault</span><span className="block text-[10px] font-bold uppercase tracking-[.16em] text-blue-600">Admin studio · prototype</span></span>
+            <span><span className="block text-lg font-extrabold leading-tight tracking-tight text-blue-950">Academic Vault</span><span className="block text-[10px] font-bold uppercase tracking-[.16em] text-blue-600">Administration</span></span>
           </Link>
           <div className="flex items-center gap-2 sm:gap-4">
-            <span className="hidden rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-900 sm:inline-flex">DEMONSTRATION DATA</span>
+            <span className="hidden rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-900 sm:inline-flex">LIVE DATABASE</span>
             <Link href="/" className="rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 sm:px-4 sm:text-sm">Public homepage</Link>
+            <LogoutButton className="rounded-full bg-blue-800 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-900 sm:px-4 sm:text-sm" />
           </div>
         </div>
       </header>
 
       <div className="mx-auto grid max-w-[1480px] gap-5 px-4 py-5 sm:px-7 sm:py-7 lg:grid-cols-[240px_minmax(0,1fr)]">
         <aside className="h-fit rounded-3xl bg-[#091d50] p-4 text-white shadow-xl shadow-blue-950/10 lg:sticky lg:top-24">
-          <div className="px-3 pb-3 pt-2"><p className="text-[10px] font-bold uppercase tracking-[.2em] text-blue-200/70">Workspace</p><p className="mt-1 text-sm font-semibold">Main administrator</p></div>
+          <div className="px-3 pb-3 pt-2"><p className="text-[10px] font-bold uppercase tracking-[.2em] text-blue-200/70">Workspace</p><p className="mt-1 text-sm font-semibold">Role-verified workspace</p></div>
           <nav aria-label="Admin navigation" className="hidden space-y-1 lg:block">
             {adminLinks.map((link) => {
               const active = link.href === "/admin" ? pathname === link.href : pathname.startsWith(link.href);
@@ -44,11 +46,10 @@ export function AdminShell({ children, pageTitle }: { children: ReactNode; pageT
               {adminLinks.map((link) => <Link key={link.href} href={link.href} className="rounded-xl px-3 py-2.5 text-sm text-blue-100 hover:bg-white/10">{link.label}</Link>)}
             </nav>
           </details>
-          <div className="mt-5 hidden rounded-2xl border border-white/10 bg-white/[.06] p-3 text-xs leading-5 text-blue-100/70 lg:block">Prototype actions update this session only. Refreshing resets the demonstration state.</div>
+          <div className="mt-5 hidden rounded-2xl border border-white/10 bg-white/[.06] p-3 text-xs leading-5 text-blue-100/70 lg:block">Changes are sent through your Supabase session and enforced by database permissions.</div>
         </aside>
 
         <main className="min-w-0">
-          <div role="note" className="mb-5 flex flex-col gap-1 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"><strong className="font-extrabold tracking-wide">PROTOTYPE</strong><span>Demonstration data only; changes are not saved. Role controls are visual and do not secure access.</span></div>
           {children}
         </main>
       </div>

@@ -1,56 +1,44 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { AuthNavigation } from "@/components/auth/auth-navigation";
+import { createClient } from "@/lib/supabase/client";
 
 const levels = ["All Levels", "Level 100", "Level 200", "Level 300", "Level 400"];
-const resourceTypes = [
-  "All Types",
-  "Lecture Slides",
-  "Past Questions",
-  "Study Notes",
-  "Likely Questions",
-  "Assignments",
-  "Practical Materials",
-];
+const categoryLabels: Record<string, string> = {
+  lecture_notes: "Lecture notes",
+  past_questions: "Past questions",
+  assignments: "Assignments",
+  slides: "Slides",
+  textbooks: "Textbooks",
+  other: "Other",
+};
+const resourceTypes = ["All Types", ...Object.keys(categoryLabels)];
 
-const resources = [
-  {
-    title: "Introduction to Programming",
-    course: "Programming Fundamentals",
-    level: "Level 100",
-    semester: "Semester 1",
-    year: "2025/2026",
-    type: "Lecture Slides",
-    icon: "📘",
-  },
-  {
-    title: "Database Management Systems",
-    course: "Database Concepts and Design",
-    level: "Level 300",
-    semester: "Semester 1",
-    year: "2025/2026",
-    type: "Past Questions",
-    icon: "📝",
-  },
-  {
-    title: "Computer Networks Revision",
-    course: "Data Communication and Networks",
-    level: "Level 200",
-    semester: "Semester 2",
-    year: "2025/2026",
-    type: "Study Notes",
-    icon: "📗",
-  },
-  {
-    title: "Software Engineering Practice",
-    course: "Software Engineering",
-    level: "Level 400",
-    semester: "Semester 2",
-    year: "2025/2026",
-    type: "Likely Questions",
-    icon: "📚",
-  },
-];
+type PublicResource = {
+  id: string;
+  title: string;
+  category: string;
+  file_name: string;
+  file_extension: string;
+  file_size_bytes: number;
+  created_at: string;
+  courses: {
+    course_code: string;
+    title: string;
+    academic_level: string;
+    semester: string;
+  };
+};
+
+function label(value: string) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function fileSize(bytes: number) {
+  return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
 const defaultSupportMessage = "Hello, I found your contact on Academic Vault. I need assistance with an assignment or project.";
 
@@ -63,6 +51,9 @@ export default function Home() {
   ];
 
   const [activeImage, setActiveImage] = useState(0);
+  const [resources, setResources] = useState<PublicResource[]>([]);
+  const [resourcesLoading, setResourcesLoading] = useState(true);
+  const [resourcesError, setResourcesError] = useState("");
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -74,28 +65,45 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [selectedLevel, setSelectedLevel] = useState("All Levels");
   const [selectedType, setSelectedType] = useState("All Types");
+  const [selectedSemester, setSelectedSemester] = useState("All Semesters");
   const [supportMessage, setSupportMessage] = useState(defaultSupportMessage);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadResources() {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("resources")
+          .select("id, title, category, file_name, file_extension, file_size_bytes, created_at, courses!inner(course_code, title, academic_level, semester)")
+          .eq("status", "approved")
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        if (!cancelled) setResources((data ?? []) as unknown as PublicResource[]);
+      } catch {
+        if (!cancelled) setResourcesError("The public library is temporarily unavailable. Please try again later.");
+      } finally {
+        if (!cancelled) setResourcesLoading(false);
+      }
+    }
+    void loadResources();
+    return () => { cancelled = true; };
+  }, []);
 
   const filteredResources = resources.filter((resource) => {
-    const matchesSearch =
-      resource.title.toLowerCase().includes(search.toLowerCase()) ||
-      resource.course.toLowerCase().includes(search.toLowerCase());
-
-    const matchesLevel =
-  selectedLevel === "All Levels" || resource.level === selectedLevel;
-
-const matchesType =
-  selectedType === "All Types" || resource.type === selectedType;
-
-return matchesSearch && matchesLevel && matchesType;
+    const searchable = `${resource.title} ${resource.file_name} ${resource.courses.title} ${resource.courses.course_code}`.toLowerCase();
+    const matchesSearch = searchable.includes(search.toLowerCase());
+    const matchesLevel = selectedLevel === "All Levels" || label(resource.courses.academic_level) === selectedLevel;
+    const matchesType = selectedType === "All Types" || resource.category === selectedType;
+    const matchesSemester = selectedSemester === "All Semesters" || label(resource.courses.semester) === selectedSemester;
+    return matchesSearch && matchesLevel && matchesType && matchesSemester;
   });
 
   return (
     <main className="min-h-screen bg-[#f5f8ff] text-slate-900">
       <header className="sticky top-0 z-30 border-b border-blue-100/80 bg-white/95 shadow-[0_8px_30px_-24px_rgba(15,23,42,.5)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
-          <a href="/" className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3">
 
 <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-blue-100 bg-white shadow-sm">
   <img
@@ -112,7 +120,7 @@ return matchesSearch && matchesLevel && matchesType;
                 Information Technology · UENR
               </p>
             </div>
-          </a>
+          </Link>
 
 
 <nav className="hidden items-center gap-7 text-sm font-semibold md:flex">
@@ -120,43 +128,38 @@ return matchesSearch && matchesLevel && matchesType;
     href="#resources"
     className="text-blue-700 transition-colors hover:text-blue-900"
   >
-    Study Materials
-  </a>
-
-  <a
-    href="#resources"
-    className="text-slate-600 transition-colors hover:text-blue-700"
-  >
-    Past Questions
-  </a>
-
-  <a
-    href="#about"
-    className="text-slate-600 transition-colors hover:text-blue-700"
-  >
-    About
+    Browse Resources
   </a>
   <a
     href="/upload"
     className="text-slate-600 transition-colors hover:text-blue-700"
   >
-    Upload Resource
+    Upload Resources
   </a>
 </nav>
 
 
-          <a
-            href="#resources"
-            className="hidden rounded-full bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-blue-900/15 transition hover:-translate-y-0.5 hover:bg-blue-900 focus:outline-none focus:ring-4 focus:ring-blue-200 sm:inline-flex"
-          >
-            Explore Resources
-          </a>
-          <a
-            href="/upload"
-            className="rounded-full bg-blue-800 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-blue-900/15 transition hover:-translate-y-0.5 hover:bg-blue-900 focus:outline-none focus:ring-4 focus:ring-blue-200 sm:hidden"
-          >
-            Upload Resource
-          </a>
+          <div className="flex items-center gap-1 sm:gap-3">
+            <AuthNavigation />
+            <a
+              href="#resources"
+              className="hidden rounded-full bg-blue-800 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-blue-900/15 transition hover:-translate-y-0.5 hover:bg-blue-900 focus:outline-none focus:ring-4 focus:ring-blue-200 lg:inline-flex"
+            >
+              Explore Resources
+            </a>
+            <a
+              href="/upload"
+              className="hidden rounded-full bg-blue-800 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-blue-900/15 transition hover:-translate-y-0.5 hover:bg-blue-900 focus:outline-none focus:ring-4 focus:ring-blue-200 sm:inline-flex lg:hidden"
+            >
+              Upload Resources
+            </a>
+            <a
+              href="/upload"
+              className="rounded-full bg-blue-800 px-3 py-2 text-[10px] font-semibold text-white shadow-md shadow-blue-900/15 transition hover:bg-blue-900 focus:outline-none focus:ring-4 focus:ring-blue-200 sm:hidden"
+            >
+              Upload Resources
+            </a>
+          </div>
         </div>
       </header>
 
@@ -278,8 +281,9 @@ return matchesSearch && matchesLevel && matchesType;
           </p>
         </div>
 
-        <div className="mb-8 grid gap-3 rounded-3xl border border-blue-100 bg-white p-3 shadow-[0_18px_50px_-38px_rgba(30,64,175,.55)] md:grid-cols-[1.5fr_1fr_1fr]">
+        <div className="mb-8 grid gap-3 rounded-3xl border border-blue-100 bg-white p-3 shadow-[0_18px_50px_-38px_rgba(30,64,175,.55)] md:grid-cols-2 xl:grid-cols-[1.5fr_1fr_1fr_1fr]">
           <input
+            aria-label="Search approved resources"
             type="search"
             placeholder="Search courses and resources..."
             value={search}
@@ -288,6 +292,7 @@ return matchesSearch && matchesLevel && matchesType;
           />
 
           <select
+            aria-label="Filter by academic level"
             value={selectedLevel}
             onChange={(event) => setSelectedLevel(event.target.value)}
             className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
@@ -299,36 +304,48 @@ return matchesSearch && matchesLevel && matchesType;
             ))}
           </select>
           <select
+            aria-label="Filter by resource category"
   value={selectedType}
   onChange={(event) => setSelectedType(event.target.value)}
   className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
 >
   {resourceTypes.map((type) => (
   <option key={type} value={type}>
-    {type === "All Types" ? "All Resource Types" : type}
+    {type === "All Types" ? "All Resource Types" : categoryLabels[type]}
   </option>
 ))}
 </select>
+          <select
+            aria-label="Filter by semester"
+            value={selectedSemester}
+            onChange={(event) => setSelectedSemester(event.target.value)}
+            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
+          >
+            {["All Semesters", "Semester 1", "Semester 2"].map((semester) => <option key={semester}>{semester}</option>)}
+          </select>
         </div>
 <p className="mb-4 text-sm text-slate-600">
-  Showing{" "}
+  {resourcesLoading ? "Loading" : resourcesError ? "Unavailable" : "Showing"}{" "}
   <span className="font-semibold text-blue-700">
-    {filteredResources.length}
+    {resourcesLoading || resourcesError ? "—" : filteredResources.length}
   </span>{" "}
-  {filteredResources.length === 1 ? "resource" : "resources"}
+  {!resourcesLoading && !resourcesError && (filteredResources.length === 1 ? "resource" : "resources")}
 </p>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-
-          {filteredResources.length > 0 ? (
+          {resourcesLoading ? (
+            <div role="status" className="col-span-full rounded-2xl border border-blue-100 bg-white px-6 py-12 text-center text-sm font-medium text-blue-900">Loading approved resources…</div>
+          ) : resourcesError ? (
+            <div role="alert" className="col-span-full rounded-2xl border border-red-200 bg-white px-6 py-12 text-center text-sm text-red-800">{resourcesError}</div>
+          ) : filteredResources.length > 0 ? (
   filteredResources.map((resource) => (
     <div
-      key={resource.title}
+      key={resource.id}
       className="group rounded-3xl border border-blue-100/80 bg-white p-6 shadow-[0_10px_30px_-24px_rgba(30,64,175,.5)] transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_24px_50px_-28px_rgba(30,64,175,.38)]"
     >
-      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-3xl ring-1 ring-blue-100 transition group-hover:bg-blue-100">{resource.icon}</div>
+      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-3xl ring-1 ring-blue-100 transition group-hover:bg-blue-100" aria-hidden="true">{resource.file_extension.toUpperCase()}</div>
 
       <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-        {resource.type}
+        {categoryLabels[resource.category] ?? "Resource"}
       </span>
 
       <h3 className="mt-2 text-lg font-bold text-slate-900">
@@ -336,30 +353,25 @@ return matchesSearch && matchesLevel && matchesType;
       </h3>
 
       <p className="mt-2 text-sm text-slate-600">
-        {resource.course}
+        {resource.courses.course_code} · {resource.courses.title}
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
-          {resource.level}
+          {label(resource.courses.academic_level)}
         </span>
 
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
-          {resource.semester}
+          {label(resource.courses.semester)}
         </span>
 
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
-          {resource.year}
+          {new Date(resource.created_at).toLocaleDateString()}
         </span>
       </div>
 
-      <button
-        type="button"
-        disabled
-      className="mt-6 w-full cursor-not-allowed rounded-full bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-500"
-      >
-        Download PDF — Coming Soon
-      </button>
+      <div className="mt-6 flex items-center justify-between gap-3 text-xs text-slate-500"><span>{fileSize(resource.file_size_bytes)} · {resource.file_extension.toUpperCase()}</span><span>Approved</span></div>
+      <a href={`/api/resources/${resource.id}/file?mode=${resource.file_extension === "pdf" ? "preview" : "download"}`} target={resource.file_extension === "pdf" ? "_blank" : undefined} rel={resource.file_extension === "pdf" ? "noopener noreferrer" : undefined} className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-blue-800 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-900 focus:outline-none focus:ring-4 focus:ring-blue-200">{resource.file_extension === "pdf" ? "Preview PDF" : "Download resource"}</a>
     </div>
   ))
 ) : (
