@@ -2,6 +2,6 @@
 
 import { signOut } from "@/app/auth/actions";
 
-export function LogoutButton({ label = "Sign out", className = "" }: { label?: string; className?: string }) {
-  return <form action={signOut}><button type="submit" className={className}>{label}</button></form>;
+export function LogoutButton({ label = "Sign out", className = "", onClick }: { label?: string; className?: string; onClick?: () => void }) {
+  return <form action={signOut}><button type="submit" onClick={onClick} className={className}>{label}</button></form>;
 }
