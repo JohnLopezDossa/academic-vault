@@ -345,23 +345,80 @@ const selectedCourse = availableCourses.find(
           contentType: mimeTypes[extension],
           upsert: false,
         });
-        if (result.error) {
-          setFiles((current) => current.map((file) => file.id === item.id ? { ...file, status: "failed", uploadError: result.error!.message } : file));
-        } else {
-          uploadedNow += 1;
-          setFiles((current) => current.map((file) => file.id === item.id ? { ...file, status: "uploaded", uploadError: "" } : file));
-        }
+        
+if (result.error) {
+  setFiles((current) =>
+    current.map((file) =>
+      file.id === item.id
+        ? {
+            ...file,
+            status: "failed",
+            uploadError: result.error!.message,
+          }
+        : file
+    )
+  );
+} else {
+  // Admin uploads are approved immediately after the file is stored.
+  // Student and sub-admin uploads retain the existing review workflow.
+  if (profile.role === "admin") {
+    const { error: approvalError } = await supabase.rpc(
+      "review_resource",
+      {
+        p_resource_id: identity.resourceId,
+        p_decision: "approved",
+        p_rejection_reason: null,
+      }
+    );
+
+    if (approvalError) {
+      setFiles((current) =>
+        current.map((file) =>
+          file.id === item.id
+            ? {
+                ...file,
+                status: "failed",
+                uploadError:
+                  "The file uploaded, but automatic publication failed. " +
+                  approvalError.message,
+              }
+            : file
+        )
+      );
+      continue;
+    }
+  }
+
+  uploadedNow += 1;
+
+  setFiles((current) =>
+    current.map((file) =>
+      file.id === item.id
+        ? { ...file, status: "uploaded", uploadError: "" }
+        : file
+    )
+  );
+}
+
       }
 
       const latestFiles = files;
       const priorUploaded = latestFiles.filter((item) => item.status === "uploaded").length;
       const successCount = priorUploaded + uploadedNow;
       const failedCount = validFiles.length - successCount;
-      if (failedCount) {
-        setFeedback(`${successCount} of ${validFiles.length} files uploaded. ${failedCount} failed; your pending records are retained. Retry the failed files or clean up this incomplete batch.`);
-      } else {
-        setFeedback(`${successCount} resource ${successCount === 1 ? "file has" : "files have"} been uploaded and submitted for review. They remain private until approved.`);
-      }
+      
+if (failedCount) {
+  setFeedback(
+    `${successCount} of ${validFiles.length} files uploaded successfully. ${failedCount} failed or could not be published.`
+  );
+} else {
+  setFeedback(
+    profile.role === "admin"
+      ? `${successCount} ${successCount === 1 ? "resource" : "resources"} published successfully and available in the public library.`
+      : `${successCount} ${successCount === 1 ? "resource" : "resources"} submitted successfully and pending review.`
+  );
+}
+
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "The batch could not be prepared. Please try again.");
     } finally {
