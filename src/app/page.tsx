@@ -410,12 +410,13 @@ export default function Home() {
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <a href={`https://wa.me/233535542438?text=${encodeURIComponent(supportMessage.trim() || defaultSupportMessage)}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-4 py-3 text-center text-sm font-bold text-blue-950 transition hover:-translate-y-0.5 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30">WhatsApp · 053 554 2438</a>
 <a
+
   href={`https://wa.me/233509866985?text=${encodeURIComponent(supportMessage.trim() || defaultSupportMessage)}`}
   target="_blank"
   rel="noopener noreferrer"
   className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/40 bg-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
 >
-  WhatsApp · 0509866985
+  WhatsApp · 050 986 6985
 </a>            </div>
           </div>
         </div>
