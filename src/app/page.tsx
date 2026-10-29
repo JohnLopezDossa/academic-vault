@@ -231,7 +231,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="resources" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-24">
+      <section id="resources"className="mx-auto max-w-7xl scroll-mt-24 px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14">
         <div className="mb-6 sm:mb-8">
           <p className="text-xs font-bold uppercase tracking-[.2em] text-blue-700">
             Your learning library
@@ -292,48 +292,75 @@ export default function Home() {
           <span className="font-semibold text-blue-700">{resourcesLoading || resourcesError ? "—" : filteredResources.length}</span>{" "}
           {!resourcesLoading && !resourcesError && (filteredResources.length === 1 ? "resource" : "resources")}
         </p>
-        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
-          {resourcesLoading ? (
+<div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">          {resourcesLoading ? (
             <div role="status" className="col-span-full rounded-2xl border border-blue-100 bg-white px-6 py-12 text-center text-sm font-medium text-blue-900">Loading approved resources…</div>
           ) : resourcesError ? (
           <div role="alert" className="col-span-full rounded-2xl border border-red-200 bg-white px-5 py-10 text-center text-sm leading-6 text-red-800 sm:px-6 sm:py-12">{resourcesError}</div>
           ) : filteredResources.length > 0 ? (
   filteredResources.map((resource) => (
+    
+<div
+  key={resource.id}
+  className="group min-w-0 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:shadow-md sm:p-4"
+>
+  <div className="flex min-w-0 items-start gap-3">
     <div
-      key={resource.id}
-      className="group min-w-0 rounded-3xl border border-blue-100/80 bg-white p-4 shadow-[0_10px_30px_-24px_rgba(30,64,175,.5)] transition duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_24px_50px_-28px_rgba(30,64,175,.38)] sm:p-6"
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[10px] font-extrabold uppercase text-blue-800 ring-1 ring-blue-100"
+      aria-hidden="true"
     >
-      <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-3xl ring-1 ring-blue-100 transition group-hover:bg-blue-100" aria-hidden="true">{resource.file_extension.toUpperCase()}</div>
+      {resource.file_extension}
+    </div>
 
-      <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+    <div className="min-w-0 flex-1">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
         {categoryLabels[resource.category] ?? "Resource"}
-      </span>
+      </div>
 
-      <h3 className="mt-2 break-words text-lg font-bold text-slate-900">
+      <h3 className="mt-1 break-words text-base font-bold leading-snug text-slate-900">
         {resource.title}
       </h3>
 
-      <p className="mt-2 break-words text-sm leading-6 text-slate-600">
+      <p className="mt-1 break-words text-xs leading-5 text-slate-600">
         {resource.courses.course_code} · {resource.courses.title}
       </p>
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
-          {label(resource.courses.academic_level)}
-        </span>
-
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
-          {label(resource.courses.semester)}
-        </span>
-
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
-          {new Date(resource.created_at).toLocaleDateString()}
-        </span>
-      </div>
-
-      <div className="mt-6 flex items-center justify-between gap-3 text-xs text-slate-500"><span>{fileSize(resource.file_size_bytes)} · {resource.file_extension.toUpperCase()}</span><span>Approved</span></div>
-      <a href={`/api/resources/${resource.id}/file?mode=${resource.file_extension === "pdf" ? "preview" : "download"}`} target={resource.file_extension === "pdf" ? "_blank" : undefined} rel={resource.file_extension === "pdf" ? "noopener noreferrer" : undefined} className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-blue-800 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200">{resource.file_extension === "pdf" ? "Preview PDF" : "Download resource"}</a>
     </div>
+  </div>
+
+  <div className="mt-3 flex flex-wrap gap-1.5">
+    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+      {label(resource.courses.academic_level)}
+    </span>
+
+    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+      {label(resource.courses.semester)}
+    </span>
+
+    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+      Approved
+    </span>
+  </div>
+
+  <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+    <span className="min-w-0 text-[11px] text-slate-500">
+      {fileSize(resource.file_size_bytes)} ·{" "}
+      {new Date(resource.created_at).toLocaleDateString()}
+    </span>
+
+    <span className="shrink-0 text-[11px] font-medium uppercase text-slate-400">
+      {resource.file_extension}
+    </span>
+  </div>
+
+  <a
+    href={`/api/resources/${resource.id}/file?mode=${resource.file_extension === "pdf" ? "preview" : "download"}`}
+    target={resource.file_extension === "pdf" ? "_blank" : undefined}
+    rel={resource.file_extension === "pdf" ? "noopener noreferrer" : undefined}
+    className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-blue-800 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+  >
+    {resource.file_extension === "pdf" ? "Preview PDF" : "Download resource"}
+  </a>
+</div>
+
   ))
 ) : (
   <div className="col-span-full rounded-2xl border border-dashed border-blue-200 bg-white px-5 py-10 text-center sm:px-6 sm:py-12">
