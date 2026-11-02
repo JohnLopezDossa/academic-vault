@@ -48,6 +48,15 @@ function fileSize(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+function isIOSBrowser() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function isSafariBrowser() {
+  return /Safari/.test(navigator.userAgent) && !/Chrome|Chromium|CriOS|Edg/.test(navigator.userAgent);
+}
+
 const defaultSupportMessage = "Hello, I found your contact on Academic Vault. I need assistance with an assignment or project.";
 
 export default function Home() {
@@ -94,6 +103,7 @@ export default function Home() {
   const [openCourse, setOpenCourse] = useState<string | null>(null);
   const [activeDownload, setActiveDownload] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState("");
+  const [downloadProgress, setDownloadProgress] = useState("");
   const [supportMessage, setSupportMessage] = useState(defaultSupportMessage);
 
   useEffect(() => {
@@ -126,10 +136,16 @@ export default function Home() {
   });
 
   async function startArchive(key: string, items: PublicResource[], name: string) {
+    if (activeDownload !== null) return;
     setActiveDownload(key);
     setDownloadError("");
+    setDownloadProgress("Preparing ZIP…");
     try {
-      await downloadLibraryZip(items as LibraryDownloadResource[], name);
+      await downloadLibraryZip(items as LibraryDownloadResource[], name, ({ bytesWritten, expectedBytes, method }) => {
+        const percent = expectedBytes > 0 ? Math.min(100, Math.floor((bytesWritten / expectedBytes) * 100)) : 0;
+        setDownloadProgress(`${method === "stream" ? "Saving" : "Preparing download"} ZIP… ${percent}% (${fileSize(bytesWritten)} of about ${fileSize(expectedBytes)})`);
+      });
+      setDownloadProgress(isIOSBrowser() ? "ZIP ready. If it opens in Safari, tap Share, then Save to Files." : isSafariBrowser() ? "ZIP download started. If it opens in a tab, use Share or File > Save As. If no download appears, allow downloads for this site and try again." : "ZIP download started. Check your browser’s downloads if it does not appear. If blocked, allow downloads for this site and try again.");
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
         setDownloadError(error instanceof Error ? error.message : "The ZIP could not be prepared. Please download individual files.");
@@ -273,6 +289,7 @@ export default function Home() {
         </div>
         <p aria-live="polite" className="mb-4 text-sm text-slate-600">{resourcesLoading ? "Loading approved resources…" : resourcesError ? "Library unavailable" : `${filteredResources.length} approved ${filteredResources.length === 1 ? "resource" : "resources"}`}</p>
         {downloadError && <p role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">{downloadError}</p>}
+        {downloadProgress && <p role="status" aria-live="polite" className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm leading-6 text-blue-900">{downloadProgress}</p>}
         {resourcesLoading ? <div role="status" className="rounded-2xl border border-blue-100 bg-white p-10 text-center text-blue-900">Loading the library…</div>
           : resourcesError ? <div role="alert" className="rounded-2xl border border-red-200 bg-white p-8 text-center text-red-800">{resourcesError}</div>
           : <div className="grid gap-4 sm:grid-cols-2">
