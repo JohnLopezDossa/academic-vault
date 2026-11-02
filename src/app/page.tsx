@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { createClient } from "@/lib/supabase/client";
-import { downloadLibraryZip, type LibraryDownloadResource } from "@/app/library-download";
 
 const levelIds = ["level_100", "level_200", "level_300", "level_400"];
 const heroImages = [
@@ -46,15 +45,6 @@ function label(value: string) {
 
 function fileSize(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-}
-
-function isIOSBrowser() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent)
-    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-}
-
-function isSafariBrowser() {
-  return /Safari/.test(navigator.userAgent) && !/Chrome|Chromium|CriOS|Edg/.test(navigator.userAgent);
 }
 
 const defaultSupportMessage = "Hello, I found your contact on Academic Vault. I need assistance with an assignment or project.";
@@ -101,9 +91,6 @@ export default function Home() {
   const [selectedSemester, setSelectedSemester] = useState("All Semesters");
   const [openLevel, setOpenLevel] = useState<string | null>(null);
   const [openCourse, setOpenCourse] = useState<string | null>(null);
-  const [activeDownload, setActiveDownload] = useState<string | null>(null);
-  const [downloadError, setDownloadError] = useState("");
-  const [downloadProgress, setDownloadProgress] = useState("");
   const [supportMessage, setSupportMessage] = useState(defaultSupportMessage);
 
   useEffect(() => {
@@ -134,26 +121,6 @@ export default function Home() {
     const matchesSemester = selectedSemester === "All Semesters" || label(resource.courses.semester) === selectedSemester;
     return matchesSearch && matchesSemester && (selectedType === "All Types" || resource.category === selectedType);
   });
-
-  async function startArchive(key: string, items: PublicResource[], name: string) {
-    if (activeDownload !== null) return;
-    setActiveDownload(key);
-    setDownloadError("");
-    setDownloadProgress("Preparing ZIP…");
-    try {
-      await downloadLibraryZip(items as LibraryDownloadResource[], name, ({ bytesWritten, expectedBytes, method }) => {
-        const percent = expectedBytes > 0 ? Math.min(100, Math.floor((bytesWritten / expectedBytes) * 100)) : 0;
-        setDownloadProgress(`${method === "stream" ? "Saving" : "Preparing download"} ZIP… ${percent}% (${fileSize(bytesWritten)} of about ${fileSize(expectedBytes)})`);
-      });
-      setDownloadProgress(isIOSBrowser() ? "ZIP ready. If it opens in Safari, tap Share, then Save to Files." : isSafariBrowser() ? "ZIP download started. If it opens in a tab, use Share or File > Save As. If no download appears, allow downloads for this site and try again." : "ZIP download started. Check your browser’s downloads if it does not appear. If blocked, allow downloads for this site and try again.");
-    } catch (error) {
-      if (!(error instanceof DOMException && error.name === "AbortError")) {
-        setDownloadError(error instanceof Error ? error.message : "The ZIP could not be prepared. Please download individual files.");
-      }
-    } finally {
-      setActiveDownload(null);
-    }
-  }
 
   return (
     <main className="min-h-screen bg-[#f5f8ff] text-slate-900">
@@ -288,15 +255,12 @@ export default function Home() {
           </select>
         </div>
         <p aria-live="polite" className="mb-4 text-sm text-slate-600">{resourcesLoading ? "Loading approved resources…" : resourcesError ? "Library unavailable" : `${filteredResources.length} approved ${filteredResources.length === 1 ? "resource" : "resources"}`}</p>
-        {downloadError && <p role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">{downloadError}</p>}
-        {downloadProgress && <p role="status" aria-live="polite" className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm leading-6 text-blue-900">{downloadProgress}</p>}
         {resourcesLoading ? <div role="status" className="rounded-2xl border border-blue-100 bg-white p-10 text-center text-blue-900">Loading the library…</div>
           : resourcesError ? <div role="alert" className="rounded-2xl border border-red-200 bg-white p-8 text-center text-red-800">{resourcesError}</div>
           : <div className="grid gap-4 sm:grid-cols-2">
             {levelIds.map((levelId) => {
               const levelName = `Level ${levelId.slice(-3)}`;
               const levelResources = filteredResources.filter((resource) => resource.courses.academic_level === levelId);
-              const archiveResources = resources.filter((resource) => resource.courses.academic_level === levelId);
               const courses = Array.from(new Map(levelResources.map((resource) => [resource.courses.id, resource.courses])).values());
               const expanded = openLevel === levelId || search.length > 0;
               return <section key={levelId} className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
@@ -305,21 +269,18 @@ export default function Home() {
                     <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-blue-50 text-lg font-extrabold text-blue-800">{levelId.slice(-3)}</span>
                     <span className="min-w-0"><span className="block font-bold text-blue-950">{levelName}</span><span className="text-sm text-slate-500">{courses.length} courses · {levelResources.length} resources</span></span>
                   </button>
-                  {archiveResources.length > 0 && <button type="button" disabled={activeDownload !== null} onClick={() => void startArchive(levelId, archiveResources, `Academic-Vault-Level-${levelId.slice(-3)}.zip`)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-blue-800 px-3 text-xs font-semibold text-white hover:bg-blue-900 disabled:cursor-wait disabled:opacity-60 sm:px-4">{activeDownload === levelId ? "Preparing…" : "Download level"}</button>}
                 </div>
                 {expanded && <div className="border-t border-blue-50 px-3 pb-3 sm:px-4">
                   {courses.length === 0 ? <p className="p-4 text-sm text-slate-500">No matching approved resources.</p> : courses.map((course) => {
                     const items = levelResources.filter((resource) => resource.courses.id === course.id);
-                    const archiveItems = resources.filter((resource) => resource.courses.id === course.id);
                     const courseKey = `${levelId}:${course.id}`;
                     const isCourseOpen = openCourse === courseKey || search.length > 0;
                     const categories = Array.from(new Set(items.map((item) => item.category)));
                     return <div key={courseKey} className="mt-3 rounded-xl border border-slate-100 bg-slate-50">
                       <div className="flex items-center gap-2 p-3">
                         <button type="button" aria-expanded={isCourseOpen} onClick={() => setOpenCourse(isCourseOpen && openCourse === courseKey ? null : courseKey)} className="min-h-10 min-w-0 flex-1 text-left"><span className="block truncate text-sm font-bold text-slate-900">{course.course_code} · {course.title}</span><span className="text-xs text-slate-500">{label(items[0].courses.semester)} · {items.length} files</span></button>
-                        <button type="button" disabled={activeDownload !== null} onClick={() => void startArchive(course.id, archiveItems, `Academic-Vault-${course.course_code}.zip`)} className="inline-flex min-h-10 shrink-0 items-center rounded-lg border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-800 disabled:cursor-wait disabled:opacity-60">{activeDownload === course.id ? "Preparing…" : "Download course"}</button>
                       </div>
-                      {isCourseOpen && <div className="space-y-3 px-3 pb-3">{categories.map((category) => <div key={category} className="rounded-lg bg-white p-3"><h4 className="text-xs font-bold uppercase tracking-wide text-blue-800">{categoryLabels[category] ?? "Other"} <span className="font-medium text-slate-500">({items.filter((item) => item.category === category).length})</span></h4><ul className="mt-2 space-y-2">{items.filter((item) => item.category === category).map((resource) => <li key={resource.id} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2"><span className="min-w-0"><span className="block truncate text-sm font-medium">{resource.title}</span><span className="text-xs text-slate-500">{fileSize(resource.file_size_bytes)} · {resource.file_extension.toUpperCase()}</span></span><a href={`/api/resources/${resource.id}/file?mode=${resource.file_extension === "pdf" ? "preview" : "download"}`} target={resource.file_extension === "pdf" ? "_blank" : undefined} rel={resource.file_extension === "pdf" ? "noopener noreferrer" : undefined} className="shrink-0 rounded-lg bg-blue-800 px-3 py-2 text-xs font-semibold text-white">{resource.file_extension === "pdf" ? "Preview" : "Download"}</a></li>)}</ul></div>)}</div>}
+                      {isCourseOpen && <div className="space-y-3 px-3 pb-3">{categories.map((category) => <div key={category} className="rounded-lg bg-white p-3"><h4 className="text-xs font-bold uppercase tracking-wide text-blue-800">{categoryLabels[category] ?? "Other"} <span className="font-medium text-slate-500">({items.filter((item) => item.category === category).length})</span></h4><ul className="mt-2 space-y-2">{items.filter((item) => item.category === category).map((resource) => <li key={resource.id} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2"><span className="min-w-0"><span className="block truncate text-sm font-medium">{resource.title}</span><span className="text-xs text-slate-500">{fileSize(resource.file_size_bytes)} · {resource.file_extension.toUpperCase()}</span></span><span className="flex shrink-0 items-center gap-2">{resource.file_extension === "pdf" && <a href={`/api/resources/${resource.id}/file?mode=preview`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-800">Preview</a>}<a href={`/api/resources/${resource.id}/file?mode=download`} className="rounded-lg bg-blue-800 px-3 py-2 text-xs font-semibold text-white">Download</a></span></li>)}</ul></div>)}</div>}
                     </div>;
                   })}
                 </div>}
