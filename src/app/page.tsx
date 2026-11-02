@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { createClient } from "@/lib/supabase/client";
+import { downloadLibraryZip, type LibraryDownloadResource } from "@/app/library-download";
 
-const levels = ["All Levels", "Level 100", "Level 200", "Level 300", "Level 400"];
+const levelIds = ["level_100", "level_200", "level_300", "level_400"];
 const heroImages = [
   "/images/campus.png",
   "/images/computer-lab.png",
@@ -19,7 +20,7 @@ const categoryLabels: Record<string, string> = {
   textbooks: "Textbooks",
   other: "Other",
 };
-const resourceTypes = ["All Types", ...Object.keys(categoryLabels)];
+const resourceTypes = ["All Types", "lecture_notes", "slides", "past_questions", "assignments", "textbooks", "other"];
 
 type PublicResource = {
   id: string;
@@ -28,8 +29,10 @@ type PublicResource = {
   file_name: string;
   file_extension: string;
   file_size_bytes: number;
+  storage_path: string;
   created_at: string;
   courses: {
+    id: string;
     course_code: string;
     title: string;
     academic_level: string;
@@ -85,9 +88,12 @@ export default function Home() {
     };
   }, []);
   const [search, setSearch] = useState("");
-  const [selectedLevel, setSelectedLevel] = useState("All Levels");
   const [selectedType, setSelectedType] = useState("All Types");
   const [selectedSemester, setSelectedSemester] = useState("All Semesters");
+  const [openLevel, setOpenLevel] = useState<string | null>(null);
+  const [openCourse, setOpenCourse] = useState<string | null>(null);
+  const [activeDownload, setActiveDownload] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState("");
   const [supportMessage, setSupportMessage] = useState(defaultSupportMessage);
 
   useEffect(() => {
@@ -97,7 +103,7 @@ export default function Home() {
         const supabase = createClient();
         const { data, error } = await supabase
           .from("resources")
-          .select("id, title, category, file_name, file_extension, file_size_bytes, created_at, courses!inner(course_code, title, academic_level, semester)")
+          .select("id, title, category, file_name, file_extension, file_size_bytes, storage_path, created_at, courses!inner(id, course_code, title, academic_level, semester)")
           .eq("status", "approved")
           .order("created_at", { ascending: false });
         if (error) throw error;
@@ -115,11 +121,23 @@ export default function Home() {
   const filteredResources = resources.filter((resource) => {
     const searchable = `${resource.title} ${resource.file_name} ${resource.courses.title} ${resource.courses.course_code}`.toLowerCase();
     const matchesSearch = searchable.includes(search.toLowerCase());
-    const matchesLevel = selectedLevel === "All Levels" || label(resource.courses.academic_level) === selectedLevel;
-    const matchesType = selectedType === "All Types" || resource.category === selectedType;
     const matchesSemester = selectedSemester === "All Semesters" || label(resource.courses.semester) === selectedSemester;
-    return matchesSearch && matchesLevel && matchesType && matchesSemester;
+    return matchesSearch && matchesSemester && (selectedType === "All Types" || resource.category === selectedType);
   });
+
+  async function startArchive(key: string, items: PublicResource[], name: string) {
+    setActiveDownload(key);
+    setDownloadError("");
+    try {
+      await downloadLibraryZip(items as LibraryDownloadResource[], name);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setDownloadError(error instanceof Error ? error.message : "The ZIP could not be prepared. Please download individual files.");
+      }
+    } finally {
+      setActiveDownload(null);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#f5f8ff] text-slate-900">
@@ -240,145 +258,57 @@ export default function Home() {
             Find your study materials
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-            Search by course or filter resources by your academic level.
+            Browse by academic level, course, semester, and resource category.
           </p>
         </div>
 
-        <div className="mb-6 grid min-w-0 gap-2.5 rounded-2xl border border-blue-100 bg-white p-3 shadow-[0_18px_50px_-38px_rgba(30,64,175,.55)] sm:gap-3 sm:p-4 md:grid-cols-2 xl:grid-cols-[1.5fr_1fr_1fr_1fr] sm:mb-8">
-          <input
-            aria-label="Search approved resources"
-            type="search"
-            placeholder="Search courses and resources..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="min-h-12 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
-          />
-
-          <select
-            aria-label="Filter by academic level"
-            value={selectedLevel}
-            onChange={(event) => setSelectedLevel(event.target.value)}
-            className="min-h-12 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
-          >
-            {levels.map((level) => (
-              <option key={level} value={level}>
-                {level}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Filter by resource category"
-  value={selectedType}
-  onChange={(event) => setSelectedType(event.target.value)}
-  className="min-h-12 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
->
-  {resourceTypes.map((type) => (
-  <option key={type} value={type}>
-    {type === "All Types" ? "All Resource Types" : categoryLabels[type]}
-  </option>
-))}
-</select>
-          <select
-            aria-label="Filter by semester"
-            value={selectedSemester}
-            onChange={(event) => setSelectedSemester(event.target.value)}
-            className="min-h-12 w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100"
-          >
+        <div className="mb-6 grid min-w-0 gap-2.5 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm sm:grid-cols-2 sm:p-4 lg:grid-cols-[1.5fr_1fr_1fr]">
+          <input aria-label="Search courses and resources" type="search" placeholder="Search courses and resources..." value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm focus:border-blue-600 focus:outline-none" />
+          <select aria-label="Filter by semester" value={selectedSemester} onChange={(event) => setSelectedSemester(event.target.value)} className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm">
             {["All Semesters", "Semester 1", "Semester 2"].map((semester) => <option key={semester}>{semester}</option>)}
           </select>
+          <select aria-label="Filter by category" value={selectedType} onChange={(event) => setSelectedType(event.target.value)} className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm">
+            {resourceTypes.map((type) => <option key={type} value={type}>{type === "All Types" ? "All Categories" : categoryLabels[type]}</option>)}
+          </select>
         </div>
-        <p aria-live="polite" className="mb-4 text-sm text-slate-600">
-          {resourcesLoading ? "Loading approved resources…" : resourcesError ? "Library unavailable" : "Showing"}{" "}
-          <span className="font-semibold text-blue-700">{resourcesLoading || resourcesError ? "—" : filteredResources.length}</span>{" "}
-          {!resourcesLoading && !resourcesError && (filteredResources.length === 1 ? "resource" : "resources")}
-        </p>
-<div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">          {resourcesLoading ? (
-            <div role="status" className="col-span-full rounded-2xl border border-blue-100 bg-white px-6 py-12 text-center text-sm font-medium text-blue-900">Loading approved resources…</div>
-          ) : resourcesError ? (
-          <div role="alert" className="col-span-full rounded-2xl border border-red-200 bg-white px-5 py-10 text-center text-sm leading-6 text-red-800 sm:px-6 sm:py-12">{resourcesError}</div>
-          ) : filteredResources.length > 0 ? (
-  filteredResources.map((resource) => (
-    
-<div
-  key={resource.id}
-  className="group min-w-0 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:shadow-md sm:p-4"
->
-  <div className="flex min-w-0 items-start gap-3">
-    <div
-      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-[10px] font-extrabold uppercase text-blue-800 ring-1 ring-blue-100"
-      aria-hidden="true"
-    >
-      {resource.file_extension}
-    </div>
-
-    <div className="min-w-0 flex-1">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
-        {categoryLabels[resource.category] ?? "Resource"}
-      </div>
-
-      <h3 className="mt-1 break-words text-base font-bold leading-snug text-slate-900">
-        {resource.title}
-      </h3>
-
-      <p className="mt-1 break-words text-xs leading-5 text-slate-600">
-        {resource.courses.course_code} · {resource.courses.title}
-      </p>
-    </div>
-  </div>
-
-  <div className="mt-3 flex flex-wrap gap-1.5">
-    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-      {label(resource.courses.academic_level)}
-    </span>
-
-    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-      {label(resource.courses.semester)}
-    </span>
-
-    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-      Approved
-    </span>
-  </div>
-
-  <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
-    <span className="min-w-0 text-[11px] text-slate-500">
-      {fileSize(resource.file_size_bytes)} ·{" "}
-      {new Date(resource.created_at).toLocaleDateString()}
-    </span>
-
-    <span className="shrink-0 text-[11px] font-medium uppercase text-slate-400">
-      {resource.file_extension}
-    </span>
-  </div>
-
-  <a
-    href={`/api/resources/${resource.id}/file?mode=${resource.file_extension === "pdf" ? "preview" : "download"}`}
-    target={resource.file_extension === "pdf" ? "_blank" : undefined}
-    rel={resource.file_extension === "pdf" ? "noopener noreferrer" : undefined}
-    className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-blue-800 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
-  >
-    {resource.file_extension === "pdf" ? "Preview PDF" : "Download resource"}
-  </a>
-</div>
-
-  ))
-) : (
-  <div className="col-span-full rounded-2xl border border-dashed border-blue-200 bg-white px-5 py-10 text-center sm:px-6 sm:py-12">
-    <div aria-hidden="true" className="text-4xl">{resources.length ? "🔎" : "📚"}</div>
-
-    <h3 className="mt-4 text-lg font-bold text-slate-900">
-      {resources.length ? "No resources match those filters" : "No approved resources yet"}
-    </h3>
-
-    <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-600">
-      {resources.length ? "Try another keyword or change your filters to see more approved study materials." : "Approved course materials will appear here after they are reviewed. There are no public resources to display right now."}
-    </p>
-    {resources.length > 0 && <button type="button" onClick={() => { setSearch(""); setSelectedLevel("All Levels"); setSelectedType("All Types"); setSelectedSemester("All Semesters"); }} className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-blue-200 px-5 py-2 text-sm font-semibold text-blue-800 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100">Clear filters</button>}
-  </div>
-)}
-        </div>
-
-      </section>
+        <p aria-live="polite" className="mb-4 text-sm text-slate-600">{resourcesLoading ? "Loading approved resources…" : resourcesError ? "Library unavailable" : `${filteredResources.length} approved ${filteredResources.length === 1 ? "resource" : "resources"}`}</p>
+        {downloadError && <p role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">{downloadError}</p>}
+        {resourcesLoading ? <div role="status" className="rounded-2xl border border-blue-100 bg-white p-10 text-center text-blue-900">Loading the library…</div>
+          : resourcesError ? <div role="alert" className="rounded-2xl border border-red-200 bg-white p-8 text-center text-red-800">{resourcesError}</div>
+          : <div className="grid gap-4 sm:grid-cols-2">
+            {levelIds.map((levelId) => {
+              const levelName = `Level ${levelId.slice(-3)}`;
+              const levelResources = filteredResources.filter((resource) => resource.courses.academic_level === levelId);
+              const archiveResources = resources.filter((resource) => resource.courses.academic_level === levelId);
+              const courses = Array.from(new Map(levelResources.map((resource) => [resource.courses.id, resource.courses])).values());
+              const expanded = openLevel === levelId || search.length > 0;
+              return <section key={levelId} className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
+                <div className="flex items-center gap-3 p-4 sm:p-5">
+                  <button type="button" aria-expanded={expanded} onClick={() => setOpenLevel(expanded && openLevel === levelId ? null : levelId)} className="flex min-h-12 min-w-0 flex-1 items-center gap-3 text-left">
+                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-blue-50 text-lg font-extrabold text-blue-800">{levelId.slice(-3)}</span>
+                    <span className="min-w-0"><span className="block font-bold text-blue-950">{levelName}</span><span className="text-sm text-slate-500">{courses.length} courses · {levelResources.length} resources</span></span>
+                  </button>
+                  {archiveResources.length > 0 && <button type="button" disabled={activeDownload !== null} onClick={() => void startArchive(levelId, archiveResources, `Academic-Vault-Level-${levelId.slice(-3)}.zip`)} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-blue-800 px-3 text-xs font-semibold text-white hover:bg-blue-900 disabled:cursor-wait disabled:opacity-60 sm:px-4">{activeDownload === levelId ? "Preparing…" : "Download level"}</button>}
+                </div>
+                {expanded && <div className="border-t border-blue-50 px-3 pb-3 sm:px-4">
+                  {courses.length === 0 ? <p className="p-4 text-sm text-slate-500">No matching approved resources.</p> : courses.map((course) => {
+                    const items = levelResources.filter((resource) => resource.courses.id === course.id);
+                    const archiveItems = resources.filter((resource) => resource.courses.id === course.id);
+                    const courseKey = `${levelId}:${course.id}`;
+                    const isCourseOpen = openCourse === courseKey || search.length > 0;
+                    const categories = Array.from(new Set(items.map((item) => item.category)));
+                    return <div key={courseKey} className="mt-3 rounded-xl border border-slate-100 bg-slate-50">
+                      <div className="flex items-center gap-2 p-3">
+                        <button type="button" aria-expanded={isCourseOpen} onClick={() => setOpenCourse(isCourseOpen && openCourse === courseKey ? null : courseKey)} className="min-h-10 min-w-0 flex-1 text-left"><span className="block truncate text-sm font-bold text-slate-900">{course.course_code} · {course.title}</span><span className="text-xs text-slate-500">{label(items[0].courses.semester)} · {items.length} files</span></button>
+                        <button type="button" disabled={activeDownload !== null} onClick={() => void startArchive(course.id, archiveItems, `Academic-Vault-${course.course_code}.zip`)} className="inline-flex min-h-10 shrink-0 items-center rounded-lg border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-800 disabled:cursor-wait disabled:opacity-60">{activeDownload === course.id ? "Preparing…" : "Download course"}</button>
+                      </div>
+                      {isCourseOpen && <div className="space-y-3 px-3 pb-3">{categories.map((category) => <div key={category} className="rounded-lg bg-white p-3"><h4 className="text-xs font-bold uppercase tracking-wide text-blue-800">{categoryLabels[category] ?? "Other"} <span className="font-medium text-slate-500">({items.filter((item) => item.category === category).length})</span></h4><ul className="mt-2 space-y-2">{items.filter((item) => item.category === category).map((resource) => <li key={resource.id} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2"><span className="min-w-0"><span className="block truncate text-sm font-medium">{resource.title}</span><span className="text-xs text-slate-500">{fileSize(resource.file_size_bytes)} · {resource.file_extension.toUpperCase()}</span></span><a href={`/api/resources/${resource.id}/file?mode=${resource.file_extension === "pdf" ? "preview" : "download"}`} target={resource.file_extension === "pdf" ? "_blank" : undefined} rel={resource.file_extension === "pdf" ? "noopener noreferrer" : undefined} className="shrink-0 rounded-lg bg-blue-800 px-3 py-2 text-xs font-semibold text-white">{resource.file_extension === "pdf" ? "Preview" : "Download"}</a></li>)}</ul></div>)}</div>}
+                    </div>;
+                  })}
+                </div>}
+              </section>;
+            })}
+          </div>}      </section>
 
       <section id="about" className="border-t border-blue-100 bg-white">
         <div className="mx-auto max-w-7xl px-5 py-12 md:flex md:items-center md:justify-between">

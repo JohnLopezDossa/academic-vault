@@ -23,11 +23,23 @@ export function AdminShell({
   pageTitle: string;
 }) {
   const pathname = usePathname();
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  return (
+    <AdminShellContent key={pathname} pathname={pathname} pageTitle={pageTitle}>
+      {children}
+    </AdminShellContent>
+  );
+}
 
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [pathname]);
+function AdminShellContent({
+  children,
+  pageTitle,
+  pathname,
+}: {
+  children: ReactNode;
+  pageTitle: string;
+  pathname: string;
+}) {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (!mobileNavOpen) return;
